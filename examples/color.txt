@@ -1,0 +1,9 @@
+10 print "\033[2J","\033[5>h",
+20 for i = 1 to 7
+30 print "\033[",i,";",i,"H","\033[3",i,"m","TinyBASIC",
+40 next i
+50 print "\033[30m",
+60 for i = 1 to 7
+70 print "\033[",i+7,";",i+7,"H","\033[4",i,"m","TinyBASIC",
+80 next i
+90 print "\033[39m","\033[49m","\033[5>l",
