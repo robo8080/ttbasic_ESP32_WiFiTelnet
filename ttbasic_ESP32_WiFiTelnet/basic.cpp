@@ -7,15 +7,34 @@
 
 #include <Arduino.h>
 #include <stdlib.h>
-//#include <EEPROM.h>
+#include <EEPROM.h>
 #include <WiFi.h>
 
-const char* ssid = "***************";
-const char* password = "***************";
+//#define USE_WIFI_AP_MODE
+
 WiFiServer server(10001);
 WiFiClient serverClient;
 #define LED   23
 
+#ifdef USE_WIFI_AP_MODE
+const char* ssid = "ESP32-TTB";
+const char* password = "esp32pass";
+void serverSetup() {
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, LOW);    // turn the LED off by making the voltage LOW
+
+  WiFi.softAP(ssid, password);
+  IPAddress myIP = WiFi.softAPIP();
+
+  Serial.print("AP IP address: ");
+  Serial.println(myIP);
+
+  digitalWrite(LED, HIGH);   // turn the LED on (HIGH is the voltage level)
+  server.begin();  
+}
+#else
+const char* ssid = "**************";
+const char* password = "**************";
 void serverSetup() {
   pinMode(LED, OUTPUT);
   digitalWrite(LED, LOW);    // turn the LED off by making the voltage LOW
@@ -35,12 +54,13 @@ void serverSetup() {
   }
   server.begin();  
 }
+#endif
 
 // TOYOSHIKI TinyBASIC symbols
 // TO-DO Rewrite defined values to fit your machine as needed
 #define SIZE_LINE 80 //Command line buffer length + NULL
 #define SIZE_IBUF 80 //i-code conversion buffer size
-#define SIZE_LIST 1024 //List buffer size
+#define SIZE_LIST 1023 //List buffer size
 #define SIZE_ARRY 32 //Array area size
 #define SIZE_GSTK 6 //GOSUB stack size(2/nest)
 #define SIZE_LSTK 15 //FOR stack size(5/nest)
@@ -101,9 +121,9 @@ const char *kwtbl[] = {
   ">=", "#", ">", "=", "<=", "<",
   "@", "RND", "ABS", "SIZE",
   "LIST", "RUN", "NEW",
-//  "SAVE",//extend
-//  "BOOT",//extend
-//  "LOAD",//extend
+  "SAVE",//extend
+  "BOOT",//extend
+  "LOAD",//extend
 };
 
 // Keyword count
@@ -120,9 +140,9 @@ enum {
   I_GTE, I_SHARP, I_GT, I_EQ, I_LTE, I_LT,
   I_ARRAY, I_RND, I_ABS, I_SIZE,
   I_LIST, I_RUN, I_NEW,
-//  I_SAVE,//extend
-//  I_BOOT,//extend
-//  I_LOAD,//extend
+  I_SAVE,//extend
+  I_BOOT,//extend
+  I_LOAD,//extend
   I_NUM, I_VAR, I_STR,
   I_EOL
 };
@@ -1330,27 +1350,27 @@ void inew(void) {
   clp = listbuf; //行ポインタをプログラム保存領域の先頭に設定
 }
 
-//void isave() {
-//  EEPROM.begin(SIZE_LIST+1);
-//  // write a listbuf to all SIZE_LIST+1 bytes of the EEPROM
-//  for (int i = 0; i < SIZE_LIST+1; i++)
-//    EEPROM.write(i, listbuf[i]);
-////  EEPROM.commit();
-//  EEPROM.end();
-//  
-//}
-//void iload() {
-//  EEPROM.begin(SIZE_LIST+1);
-//  // write a listbuf to all SIZE_LIST+1 bytes of the EEPROM
-//  for (int i = 0; i < SIZE_LIST+1; i++)
-//    listbuf[i] = EEPROM.read(i);
-//  
-//}
-//unsigned char bootflag() {
-//  EEPROM.begin(SIZE_LIST+1);
-//  return EEPROM.read(SIZE_LIST);
-//  return 0;
-//}
+void isave() {
+  EEPROM.begin(SIZE_LIST+1);
+  // write a listbuf to all SIZE_LIST+1 bytes of the EEPROM
+  for (int i = 0; i < SIZE_LIST+1; i++)
+    EEPROM.write(i, listbuf[i]);
+  EEPROM.commit();
+  EEPROM.end();
+  
+}
+void iload() {
+  EEPROM.begin(SIZE_LIST+1);
+  // write a listbuf to all SIZE_LIST+1 bytes of the EEPROM
+  for (int i = 0; i < SIZE_LIST+1; i++)
+    listbuf[i] = EEPROM.read(i);
+  
+}
+unsigned char bootflag() {
+  EEPROM.begin(SIZE_LIST+1);
+  return EEPROM.read(SIZE_LIST);
+  return 0;
+}
 
 //Command precessor
 void icom() {
@@ -1380,27 +1400,27 @@ void icom() {
     irun(); //RUN命令を実行
     break; //打ち切る
     
-//  case I_SAVE://extend
-//    cip++;
-//    if(*cip == I_BOOT){
-//      cip++;
-//      listbuf[SIZE_LIST] = I_BOOT;
-//    } else {
-//      listbuf[SIZE_LIST] = 0;
-//    }
-//    if(*cip == I_EOL)
-//      isave();
-//    else
-//      err = ERR_COM;
-//    break;
-//    
-//  case I_LOAD://extend
-//        cip++;
-//    if(*cip == I_EOL)
-//      iload();
-//    else
-//      err = ERR_COM;
-//    break;
+  case I_SAVE://extend
+    cip++;
+    if(*cip == I_BOOT){
+      cip++;
+      listbuf[SIZE_LIST] = I_BOOT;
+    } else {
+      listbuf[SIZE_LIST] = 0;
+    }
+    if(*cip == I_EOL)
+      isave();
+    else
+      err = ERR_COM;
+    break;
+    
+  case I_LOAD://extend
+        cip++;
+    if(*cip == I_EOL)
+      iload();
+    else
+      err = ERR_COM;
+    break;
 
   default: //どれにも該当しない場合
     iexe(); //中間コードを実行
@@ -1447,7 +1467,11 @@ void basic() {
 
   while(1){ //無限ループ
     Serial.print("\nReady! Use 'telnet ");
+#ifdef USE_WIFI_AP_MODE
+    Serial.print(WiFi.softAPIP());
+#else
     Serial.print(WiFi.localIP());
+#endif
     Serial.println(" 10001' to connect");
   
     // wait for a new client:
@@ -1469,11 +1493,11 @@ void basic() {
     c_puts(STR_EDITION); //版を区別する文字列を表示
     c_puts(" EDITION"); //「 EDITION」を表示
     newline(); //改行
-//    if(bootflag() == I_BOOT){
-//      c_puts("Power on run"); newline();
-//      iload();
-//      irun();
-//    }
+    if(bootflag() == I_BOOT){
+      c_puts("Power on run"); newline();
+      iload();
+      irun();
+    }
     error(); //「OK」またはエラーメッセージを表示してエラー番号をクリア
   
     //端末から1行を入力して実行
